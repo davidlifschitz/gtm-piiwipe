@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PiiWipe — clean copy, files stay here</title>
+    <meta
+      name="description"
+      content="Drop a PDF, Word file, or text dump. Get a copy with emails, phones, SSNs, cards, and IPs wiped. Nothing is uploaded."
+    />
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #1c1917;
+        --muted: #57534e;
+        --line: #e7e5e4;
+        --bg: #fafaf9;
+        --card: #ffffff;
+        --accent: #0f766e;
+        --warn: #9a3412;
+        --hit: #fef3c7;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
+        background: var(--bg);
+        color: var(--ink);
+        line-height: 1.5;
+      }
+      main {
+        max-width: 44rem;
+        margin: 0 auto;
+        padding: 4rem 1.5rem 5rem;
+      }
+      h1 { font-size: 2rem; letter-spacing: -0.03em; margin: 0 0 0.75rem; }
+      .kicker { color: var(--muted); font-size: 0.875rem; font-weight: 600; margin: 0 0 0.75rem; }
+      .lede { color: var(--muted); font-size: 1.125rem; max-width: 36rem; }
+      .drop {
+        margin: 2rem 0 1rem;
+        border: 1px dashed #d6d3d1;
+        border-radius: 1rem;
+        background: var(--card);
+        padding: 2rem 1.25rem;
+        text-align: center;
+      }
+      .drop.over { border-color: var(--accent); background: #f0fdfa; }
+      button, .btn {
+        appearance: none;
+        border: 0;
+        background: var(--ink);
+        color: white;
+        border-radius: 0.6rem;
+        padding: 0.6rem 1rem;
+        font: inherit;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      button.secondary { background: white; color: var(--ink); border: 1px solid var(--line); }
+      button:disabled { opacity: 0.45; cursor: not-allowed; }
+      textarea {
+        width: 100%;
+        min-height: 7rem;
+        margin-top: 1rem;
+        border: 1px solid var(--line);
+        border-radius: 0.75rem;
+        padding: 0.85rem;
+        font: inherit;
+        resize: vertical;
+      }
+      .meta { color: var(--muted); font-size: 0.875rem; }
+      .counts {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 0.5rem;
+        margin: 1rem 0;
+      }
+      .counts div {
+        border: 1px solid var(--line);
+        border-radius: 0.75rem;
+        padding: 0.7rem;
+        background: var(--card);
+      }
+      .counts b { display: block; font-size: 1.25rem; }
+      .counts span { font-size: 0.75rem; color: var(--muted); }
+      pre {
+        white-space: pre-wrap;
+        word-break: break-word;
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 0.75rem;
+        padding: 1rem;
+        max-height: 22rem;
+        overflow: auto;
+        font-size: 0.85rem;
+      }
+      mark { background: var(--hit); padding: 0 0.1em; }
+      .row { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 1rem 0; }
+      .cards { display: grid; gap: 0.75rem; grid-template-columns: 1fr; }
+      @media (min-width: 640px) { .cards { grid-template-columns: 1fr 1fr 1fr; } }
+      .cards article {
+        border: 1px solid var(--line);
+        border-radius: 0.9rem;
+        padding: 1rem;
+        background: var(--card);
+      }
+      .cards h2 { font-size: 1rem; margin: 0 0 0.4rem; }
+      .cards p { margin: 0; color: var(--muted); font-size: 0.875rem; }
+      footer { margin-top: 3rem; padding-top: 1.25rem; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.875rem; }
+      a { color: inherit; }
+      .warn { color: var(--warn); font-size: 0.875rem; }
+      input[type="file"] { display: none; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p class="kicker">PiiWipe</p>
+      <h1>You already said the problem out loud.</h1>
+      <p class="lede">
+        “Is there a simple tool that just scans the file, removes/hides the PII,
+        and gives me a clean copy to send?” Drop it here. Heuristic wipe in this
+        tab. Nothing is uploaded.
+      </p>
+
+      <div class="drop" id="drop">
+        <p><strong>Drop a PDF, .docx, or text file</strong></p>
+        <p class="meta">or paste below. 8 MB cap. Files stay on this device.</p>
+        <div class="row" style="justify-content: center;">
+          <button type="button" id="pick">Choose file</button>
+          <button type="button" class="secondary" id="sample">Load sample</button>
+        </div>
+        <input id="file" type="file" accept=".txt,.csv,.md,.json,.html,.log,.pdf,.docx,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
+        <textarea id="paste" placeholder="Paste a message, log, or CSV…"></textarea>
+      </div>
+
+      <p class="meta" id="status">Waiting for a file or paste.</p>
+      <p class="warn" id="error" hidden></p>
+
+      <div class="counts" id="counts" hidden>
+        <div><b id="c-email">0</b><span>emails</span></div>
+        <div><b id="c-phone">0</b><span>phones</span></div>
+        <div><b id="c-ssn">0</b><span>SSNs</span></div>
+        <div><b id="c-card">0</b><span>cards</span></div>
+        <div><b id="c-ip">0</b><span>IPs</span></div>
+      </div>
+
+      <div class="row">
+        <button type="button" id="download" disabled>Download clean copy</button>
+        <button type="button" class="secondary" id="copy" disabled>Copy wiped text</button>
+      </div>
+      <pre id="preview" hidden></pre>
+
+      <section class="cards" style="margin-top: 2.5rem;">
+        <article>
+          <h2>The declaration is the qualifier</h2>
+          <p>If you redact by hand before hitting send, you already know you need this. No demo call.</p>
+        </article>
+        <article>
+          <h2>The wiped file is the product</h2>
+          <p>Emails, phones, SSNs, cards, IPs become [EMAIL], [PHONE], [SSN], [CARD], [IP]. Then we forget you were here.</p>
+        </article>
+        <article>
+          <h2>Built for the reply</h2>
+          <p>Someone posted the pain. This page is the answer. Try it in this tab, then send the URL back.</p>
+        </article>
+      </section>
+
+      <section>
+        <h2>Who this is for</h2>
+        <ul class="meta">
+          <li>A PDF you are about to email a contractor</li>
+          <li>A Word dump with customer phones still in it</li>
+          <li>A CSV or log you want to paste into a ticket</li>
+        </ul>
+        <p class="warn">Heuristic only. Not a legal, HIPAA, or court redaction tool. Read the preview before you send.</p>
+      </section>
+
+      <footer>
+        <a href="https://github.com/davidlifschitz/gtm-piiwipe">Source</a>
+        · Ask:
+        <a href="https://www.reddit.com/r/software/comments/1vpvzyg/is_there_a_tool_that_removes_pii_from_documents/">r/software PII wipe</a>
+        · 8 MB. No account. No cloud copy.
+      </footer>
+    </main>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
