@@ -34,3 +34,25 @@ it('rejects malformed DOCX XML instead of silently stripping tags', async () => 
   const { run } = loadApp();
   await expect(run('(async()=>{const z=new JSZip();z.file("word/document.xml","<broken>");return extractDocxText(await z.generateAsync({type:"uint8array"}));})()')).rejects.toThrow(/XML/);
 });
+
+it('clears downloadable output when the paste is emptied', () => {
+  const { run, window } = loadApp();
+  run('els.paste.value="jane@example.com";handlePaste();els.paste.value="";handlePaste()');
+  expect(run('state.wiped')).toBe('');
+  expect(window.document.getElementById('download').disabled).toBe(true);
+  expect(window.document.getElementById('copy').disabled).toBe(true);
+});
+it('clears the old result when a new file is rejected', async () => {
+  const { run, window } = loadApp();
+  await run('els.paste.value="safe";handlePaste();handleFile({name:"huge.txt",size:MAX_BYTES+1})');
+  expect(run('state.wiped')).toBe('');
+  expect(window.document.getElementById('download').disabled).toBe(true);
+  expect(window.document.getElementById('error').textContent).toContain('8 MB');
+});
+it('does not overwrite newer pasted text with a slow file', async () => {
+  const { run } = loadApp();
+  const pending = run('let release;readAsText=()=>new Promise(r=>release=r);handleFile({name:"slow.txt",size:1})');
+  run('els.paste.value="new text";handlePaste();release("old text")');
+  await pending;
+  expect(run('state.wiped')).toBe('new text');
+});
