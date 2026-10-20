@@ -68,10 +68,24 @@ it('uses the bundled PDF parser without a remote module import', async () => {
   let destroyed = false;
   window.pdfjsLib = { getDocument: options => {
     expect(options.isEvalSupported).toBe(false);
-    return { promise: Promise.resolve({ numPages:1,
+    return { destroy:async()=>{destroyed=true;}, promise: Promise.resolve({ numPages:1,
       getPage:async()=>({getTextContent:async()=>({items:[{str:'jane@example.com'}]})}),
       destroy:async()=>{destroyed=true;} }) };
   } };
   expect(await run('extractPdfText(new Uint8Array([1,2]))')).toBe('jane@example.com');
   expect(destroyed).toBe(true);
+});
+
+it('reconstructs adjacent PDF fragments before wiping', async () => {
+  const { run, window } = loadApp();
+  window.pdfjsLib = {getDocument:()=>({destroy:async()=>{},promise:Promise.resolve({numPages:1,destroy:async()=>{},
+    getPage:async()=>({getTextContent:async()=>({items:[
+      {str:'jane@',width:30,height:10,transform:[1,0,0,10,10,100]},
+      {str:'example.com',width:60,height:10,transform:[1,0,0,10,40,100],hasEOL:true},
+      {str:'Next',width:20,height:10,transform:[1,0,0,10,10,80]},
+      {str:'word',width:20,height:10,transform:[1,0,0,10,40,80]}
+    ]})})})})};
+  const text = await run('extractPdfText(new Uint8Array([1]))');
+  expect(text).toBe('jane@example.com\nNext word');
+  expect(run(`wipeText(${JSON.stringify(text)}).wiped`)).toBe('[EMAIL]\nNext word');
 });
