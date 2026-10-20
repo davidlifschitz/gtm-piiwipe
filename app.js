@@ -171,39 +171,54 @@ async function createCleanDocx(wiped) {
   return Packer.toArrayBuffer(doc);
 }
 
-async function handleFile(file) {
+let inputVersion = 0;
+
+function resetOutput(name = "paste.txt") {
+  inputVersion += 1;
+  state = { name, kind: "text", original: "", wiped: "",
+    counts: { email: 0, phone: 0, ssn: 0, card: 0, ip: 0 }, docxZip: null };
   setError("");
+  render();
+  return inputVersion;
+}
+
+async function handleFile(file) {
+  const ticket = resetOutput(file.name || "file.txt");
   if (file.size > MAX_BYTES) {
     setError("File is over the 8 MB cap.");
     return;
   }
   const name = file.name || "file.txt";
   const lower = name.toLowerCase();
+  let next;
   try {
     if (lower.endsWith(".pdf")) {
       const buf = await readAsArrayBuffer(file);
       const original = await extractPdfText(buf);
       const { wiped, counts } = wipeText(original);
-      state = { name, kind: "pdf", original, wiped, counts, docxZip: null };
+      next = { name, kind: "pdf", original, wiped, counts, docxZip: null };
     } else if (lower.endsWith(".docx")) {
       const buf = await readAsArrayBuffer(file);
       const { text } = await extractDocxText(buf);
       const { wiped, counts } = wipeText(text);
-      state = { name, kind: "docx", original: text, wiped, counts, docxZip: null };
+      next = { name, kind: "docx", original: text, wiped, counts, docxZip: null };
     } else {
       const original = await readAsText(file);
       const { wiped, counts } = wipeText(original);
-      state = { name, kind: "text", original, wiped, counts, docxZip: null };
+      next = { name, kind: "text", original, wiped, counts, docxZip: null };
     }
+    if (ticket !== inputVersion) return;
+    state = next;
     render();
   } catch (err) {
+    if (ticket !== inputVersion) return;
     setError(err?.message || "Could not read that file.");
   }
 }
 
 function handlePaste() {
   const original = els.paste.value;
-  if (!original.trim()) return;
+  resetOutput();
   const { wiped, counts } = wipeText(original);
   state = { name: "paste.txt", kind: "text", original, wiped, counts, docxZip: null };
   setError("");
