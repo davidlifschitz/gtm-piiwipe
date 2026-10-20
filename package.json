@@ -1,1 +1,1 @@
-{"name":"gtm-piiwipe","private":true,"scripts":{"test":"vitest run"},"devDependencies":{"vitest":"^3.2.4","jsdom":"^26.1.0","jszip":"^3.10.1"}}
+{"name":"gtm-piiwipe","private":true,"scripts":{"test":"vitest run"},"devDependencies":{"docx":"^9.12.0","jsdom":"^26.1.0","jszip":"^3.10.1","vitest":"^3.2.4"}}
