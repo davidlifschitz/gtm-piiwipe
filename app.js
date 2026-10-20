@@ -132,25 +132,43 @@ async function extractDocxText(buf) {
   const zip = await window.JSZip.loadAsync(buf);
   const xml = await zip.file("word/document.xml")?.async("string");
   if (!xml) throw new Error("Not a valid .docx");
-  const text = xml
-    .replace(/<w:p[\s>]/g, "\n<p ")
-    .replace(/<w:tab\/>/g, "\t")
-    .replace(/<[^>]+>/g, "")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&amp;/g, "&");
-  return { text, zip, xml };
+  if (xml.length > MAX_BYTES || /<!DOCTYPE/i.test(xml)) throw new Error("Unsupported DOCX XML.");
+  const doc = new DOMParser().parseFromString(xml, "application/xml");
+  if (doc.querySelector("parsererror")) throw new Error("Invalid DOCX XML.");
+  const ns = doc.documentElement.namespaceURI;
+  if (!["http://schemas.openxmlformats.org/wordprocessingml/2006/main",
+        "http://purl.oclc.org/ooxml/wordprocessingml/main"].includes(ns)) {
+    throw new Error("Unsupported DOCX XML namespace.");
+  }
+  const body = doc.getElementsByTagNameNS(ns, "body")[0];
+  if (!body) throw new Error("Missing DOCX body.");
+  const text = [...body.getElementsByTagNameNS(ns, "p")].map((p) => {
+    let line = "";
+    const visit = (node) => {
+      for (const child of node.children) {
+        if (child.namespaceURI === ns) {
+          if (child.localName === "p" || child.localName === "del") continue;
+          if (child.localName === "t") { line += child.textContent; continue; }
+          if (child.localName === "tab") { line += "\t"; continue; }
+          if (["br", "cr"].includes(child.localName)) { line += "\n"; continue; }
+        }
+        visit(child);
+      }
+    };
+    visit(p);
+    return line;
+  }).join("\n");
+  return { text };
 }
 
-function wipeDocxXml(xml) {
-  let out = xml;
-  out = out.replace(CARD_RE, (match) => {
-    const digits = match.replace(/\D/g, "");
-    if (digits.length < 13 || digits.length > 19 || !luhnOk(digits)) return match;
-    return "[CARD]";
+async function createCleanDocx(wiped) {
+  const { Document, Packer, Paragraph, TextRun } = window.docx;
+  const doc = new Document({
+    creator: "PIIWipe",
+    sections: [{ children: wiped.split(/\r?\n/).map((text) =>
+      new Paragraph({ children: [new TextRun(text)] })) }],
   });
-  for (const p of PATTERNS) out = out.replace(p.re, p.label);
-  return out;
+  return Packer.toArrayBuffer(doc);
 }
 
 async function handleFile(file) {
@@ -169,11 +187,9 @@ async function handleFile(file) {
       state = { name, kind: "pdf", original, wiped, counts, docxZip: null };
     } else if (lower.endsWith(".docx")) {
       const buf = await readAsArrayBuffer(file);
-      const { text, zip, xml } = await extractDocxText(buf);
+      const { text } = await extractDocxText(buf);
       const { wiped, counts } = wipeText(text);
-      const wipedXml = wipeDocxXml(xml);
-      zip.file("word/document.xml", wipedXml);
-      state = { name, kind: "docx", original: text, wiped, counts, docxZip: zip };
+      state = { name, kind: "docx", original: text, wiped, counts, docxZip: null };
     } else {
       const original = await readAsText(file);
       const { wiped, counts } = wipeText(original);
@@ -209,8 +225,9 @@ function wipedName(name, ext) {
 
 async function downloadClean() {
   if (!state.wiped) return;
-  if (state.kind === "docx" && state.docxZip) {
-    const blob = await state.docxZip.generateAsync({ type: "blob" });
+  if (state.kind === "docx") {
+    const bytes = await createCleanDocx(state.wiped);
+    const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
     downloadBlob(blob, wipedName(state.name, "docx"));
     return;
   }

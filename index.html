@@ -172,6 +172,7 @@
           <li>A Word dump with customer phones still in it</li>
           <li>A CSV or log you want to paste into a ticket</li>
         </ul>
+        <p class="warn">DOCX downloads are rebuilt from scrubbed body text. Formatting, headers, comments, metadata, and attachments are not retained.</p>
         <p class="warn">Heuristic only. Not a legal, HIPAA, or court redaction tool. Read the preview before you send.</p>
       </section>
 
@@ -184,6 +185,7 @@
     </main>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <script src="./vendor/docx.js"></script>
     <script type="module" src="./app.js"></script>
   </body>
 </html>
