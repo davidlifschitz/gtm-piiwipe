@@ -114,17 +114,20 @@ async function readAsText(file) {
 }
 
 async function extractPdfText(buf) {
-  const pdfjs = await import("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.8.69/pdf.min.mjs");
-  pdfjs.GlobalWorkerOptions.workerSrc =
-    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.8.69/pdf.worker.min.mjs";
-  const doc = await pdfjs.getDocument({ data: buf }).promise;
-  const parts = [];
-  for (let i = 1; i <= doc.numPages; i++) {
-    const page = await doc.getPage(i);
-    const content = await page.getTextContent();
-    parts.push(content.items.map((it) => it.str).join(" "));
+  const pdfjs = window.pdfjsLib;
+  if (!pdfjs) throw new Error("PDF parser failed to load.");
+  const doc = await pdfjs.getDocument({ data: buf, isEvalSupported: false }).promise;
+  try {
+    const parts = [];
+    for (let i = 1; i <= doc.numPages; i++) {
+      const page = await doc.getPage(i);
+      const content = await page.getTextContent();
+      parts.push(content.items.map((it) => it.str).join(" "));
+    }
+    return parts.join("\n\n");
+  } finally {
+    await doc.destroy();
   }
-  return parts.join("\n\n");
 }
 
 async function extractDocxText(buf) {
