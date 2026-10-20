@@ -183,9 +183,11 @@
         · 8 MB. No account. No cloud copy.
       </footer>
     </main>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <script src="./vendor/jszip.min.js"></script>
+    <script src="./vendor/pdf-lib.min.js"></script>
     <script src="./vendor/docx.js"></script>
-    <script type="module" src="./app.js"></script>
+    <script src="./vendor/pdf.worker.js"></script>
+    <script src="./vendor/pdf.js"></script>
+    <script defer src="./app.js"></script>
   </body>
 </html>

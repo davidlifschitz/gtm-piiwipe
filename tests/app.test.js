@@ -56,3 +56,22 @@ it('does not overwrite newer pasted text with a slow file', async () => {
   await pending;
   expect(run('state.wiped')).toBe('new text');
 });
+
+it('uses only classic local scripts for offline file-open operation', () => {
+  const { window } = loadApp();
+  const scripts = Array.from(window.document.scripts);
+  expect(scripts.find(s => s.getAttribute('src') === './app.js').type).not.toBe('module');
+  expect(scripts.every(s => !/^https?:/.test(s.getAttribute('src') || ''))).toBe(true);
+});
+it('uses the bundled PDF parser without a remote module import', async () => {
+  const { run, window } = loadApp();
+  let destroyed = false;
+  window.pdfjsLib = { getDocument: options => {
+    expect(options.isEvalSupported).toBe(false);
+    return { promise: Promise.resolve({ numPages:1,
+      getPage:async()=>({getTextContent:async()=>({items:[{str:'jane@example.com'}]})}),
+      destroy:async()=>{destroyed=true;} }) };
+  } };
+  expect(await run('extractPdfText(new Uint8Array([1,2]))')).toBe('jane@example.com');
+  expect(destroyed).toBe(true);
+});
