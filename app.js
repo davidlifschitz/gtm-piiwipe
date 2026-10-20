@@ -113,20 +113,44 @@ async function readAsText(file) {
   });
 }
 
+function pdfItemsToText(items) {
+  let text = "";
+  let previous = null;
+  for (const item of items) {
+    if (typeof item.str !== "string") continue;
+    if (previous && !text.endsWith("\n")) {
+      const a = previous.transform;
+      const b = item.transform;
+      if (a && b) {
+        const size = Math.max(Math.abs(a[3]), Math.abs(b[3]), 1);
+        const newLine = Math.abs(b[5] - a[5]) > size * 0.5;
+        const gap = b[4] - (a[4] + (previous.width || 0));
+        if (newLine) text += "\n";
+        else if (gap > size * 0.2 && !/\s$/.test(text) && !/^\s/.test(item.str)) text += " ";
+      } else if (text && !/\s$/.test(text)) text += " ";
+    }
+    text += item.str;
+    if (item.hasEOL) text += "\n";
+    previous = item;
+  }
+  return text.trimEnd();
+}
+
 async function extractPdfText(buf) {
   const pdfjs = window.pdfjsLib;
   if (!pdfjs) throw new Error("PDF parser failed to load.");
-  const doc = await pdfjs.getDocument({ data: buf, isEvalSupported: false }).promise;
+  const task = pdfjs.getDocument({ data: buf, isEvalSupported: false });
+  const doc = await task.promise;
   try {
     const parts = [];
     for (let i = 1; i <= doc.numPages; i++) {
       const page = await doc.getPage(i);
       const content = await page.getTextContent();
-      parts.push(content.items.map((it) => it.str).join(" "));
+      parts.push(pdfItemsToText(content.items));
     }
     return parts.join("\n\n");
   } finally {
-    await doc.destroy();
+    await task.destroy();
   }
 }
 
